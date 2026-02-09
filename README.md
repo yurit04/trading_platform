@@ -1,4 +1,4 @@
-# trading_system
+# trading_platform
 
 #### to create 'algo' conda environment, run
 conda env create -f algo.yml
