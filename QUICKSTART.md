@@ -8,7 +8,7 @@ This guide will help you get started with the trading platform in minutes.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourorg/trading_platform.git
+git clone https://github.com/yurit04/trading_platform.git
 cd trading_platform
 
 # Create virtual environment
@@ -253,9 +253,9 @@ docker-compose up -d postgres timescaledb redis
 
 ## Getting Help
 
-- GitHub Issues: [https://github.com/yourorg/trading_platform/issues](https://github.com/yourorg/trading_platform/issues)
+- GitHub Issues: [https://github.com/yurit04/trading_platform/issues](https://github.com/yurit04/trading_platform/issues)
 - Documentation: [https://docs.tradingplatform.dev](https://docs.tradingplatform.dev)
-- Discussions: [https://github.com/yourorg/trading_platform/discussions](https://github.com/yourorg/trading_platform/discussions)
+- Discussions: [https://github.com/yurit04/trading_platform/discussions](https://github.com/yurit04/trading_platform/discussions)
 
 ## What's Next?
 

@@ -14,7 +14,7 @@ setup(
     description="A comprehensive algorithmic trading platform for systematic strategies",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourorg/trading_platform",
+    url="https://github.com/yurit04/trading_platform",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     classifiers=[

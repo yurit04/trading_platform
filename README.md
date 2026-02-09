@@ -392,7 +392,7 @@ trading_platform/
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourorg/trading_platform.git
+git clone https://github.com/yurit04/trading_platform.git
 cd trading_platform
 
 # Create virtual environment
@@ -793,8 +793,8 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 ## Support
 
 - Documentation: [https://docs.tradingplatform.dev](https://docs.tradingplatform.dev)
-- Issues: [GitHub Issues](https://github.com/yourorg/trading_platform/issues)
-- Discussions: [GitHub Discussions](https://github.com/yourorg/trading_platform/discussions)
+- Issues: [GitHub Issues](https://github.com/yurit04/trading_platform/issues)
+- Discussions: [GitHub Discussions](https://github.com/yurit04/trading_platform/discussions)
 - Email: support@tradingplatform.dev
 
 ## Acknowledgments
