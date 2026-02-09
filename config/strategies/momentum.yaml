@@ -1,0 +1,63 @@
+# Momentum Strategy Configuration
+
+strategy:
+  name: MomentumStrategy
+  class: strategies.examples.momentum.MomentumStrategy
+  enabled: true
+
+# Strategy Parameters
+parameters:
+  lookback_period: 20  # Days to calculate momentum
+  top_n: 10  # Number of positions to hold
+  rebalance_days: 5  # Days between rebalances
+
+# Universe Definition
+universe:
+  type: static  # static, dynamic, or filter
+  symbols:
+    - AAPL
+    - MSFT
+    - GOOGL
+    - AMZN
+    - META
+    - TSLA
+    - NVDA
+    - JPM
+    - V
+    - WMT
+    - JNJ
+    - PG
+    - MA
+    - HD
+    - DIS
+  
+  # Alternative: Dynamic universe with filters
+  # type: filter
+  # filters:
+  #   asset_class: equity
+  #   min_market_cap: 1000000000  # $1B
+  #   min_dollar_volume: 10000000  # $10M daily
+  #   exchanges: [NYSE, NASDAQ]
+
+# Risk Management
+risk:
+  max_position_size: 0.15  # 15% max per position
+  max_leverage: 1.0  # No leverage
+  max_sector_exposure: 0.35  # 35% max per sector
+  stop_loss_pct: 0.10  # 10% stop loss
+  
+# Execution
+execution:
+  order_type: market  # market, limit, vwap, twap
+  time_in_force: day
+  max_order_size_pct: 0.05  # 5% of ADV
+  
+# Backtesting
+backtest:
+  start_date: "2020-01-01"
+  end_date: "2023-12-31"
+  initial_capital: 1000000
+  commission_model: fixed_per_share
+  commission_rate: 0.005  # $0.005 per share
+  slippage_model: volume_based
+  slippage_bps: 5  # 5 basis points

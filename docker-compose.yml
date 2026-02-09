@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: trading_postgres
+    environment:
+      POSTGRES_DB: trading_platform
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-trading123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trader"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: trading_timescale
+    environment:
+      POSTGRES_DB: market_data
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-trading123}
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trader"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: trading_redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading_platform
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - TIMESCALE_HOST=timescaledb
+      - TIMESCALE_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./results:/app/results
+      - ./config:/app/config:ro
+    ports:
+      - "8000:8000"
+    command: python scripts/live_trading.py
+    restart: unless-stopped
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading_jupyter
+    depends_on:
+      - postgres
+      - timescaledb
+      - redis
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - TIMESCALE_HOST=timescaledb
+      - TIMESCALE_PORT=5432
+      - REDIS_HOST=redis
+    env_file:
+      - .env
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./data:/app/data
+      - ./strategies:/app/strategies
+    ports:
+      - "8888:8888"
+    command: jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token=''
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  timescale_data:
+  redis_data:
+
+networks:
+  default:
+    name: trading_network
