@@ -1,19 +1,8 @@
-notebook
-matplotlib
-plotly
-scikit-learn
-statsmodels
-xgboost
-ta-lib
-ta
-cvxpy
-yfinance
-riskfolio-lib
-optuna
-
 # Core dependencies
 pandas
 numpy
+scikit-learn
+statsmodels
 scipy
 pydantic
 python-dateutil
@@ -29,11 +18,22 @@ aiohttp
 
 # Financial data
 pandas-datareader
+# yfinance
 
 # Technical analysis
 pandas-ta
+# ta-lib
+# ta
+
+# Machine learning
+# xgboost
+# cvxpy
+# riskfolio-lib
+# optuna
 
 # Visualization
+matplotlib
+plotly
 seaborn
 quantstats
 
@@ -67,5 +67,4 @@ isort
 pylint
 
 # Jupyter (optional)
-jupyter
-ipykernel
+notebook
