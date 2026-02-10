@@ -52,19 +52,5 @@ requests
 # Logging and monitoring
 loguru
 
-# Testing (dev)
-pytest
-pytest-asyncio
-pytest-cov
-pytest-mock
-hypothesis
-
-# Code quality (dev)
-black
-flake8
-mypy
-isort
-pylint
-
 # Jupyter (optional)
 notebook
