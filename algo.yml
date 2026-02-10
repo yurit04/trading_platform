@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.10
+  - python >=3.10
   - notebook
   - matplotlib
   - plotly
@@ -16,3 +16,51 @@ dependencies:
   - yfinance
   - riskfolio-lib
   - optuna
+  # Core dependencies
+  - pandas
+  - numpy
+  - scipy
+  - pydantic
+  - python-dateutil
+  # Data handling
+  - sqlalchemy
+  - psycopg2-binary
+  - redis
+  - pyarrow
+  # Async support
+  - aiohttp
+  # Financial data
+  - pandas-datareader
+  # Technical analysis
+  - pandas-ta
+  # Visualization
+  - seaborn
+  - quantstats
+  # API clients (optional - install based on brokers used)
+  - ib-insync  # Interactive Brokers
+  # - ccxt  # Crypto exchanges
+  # - alpaca-trade-api  # Alpaca
+  # Utilities
+  - python-dotenv
+  - pyyaml
+  - click
+  - tqdm
+  - requests
+  # Logging and monitoring
+  - loguru
+  # - prometheus-client
+  # Testing (dev)
+  - pytest
+  - pytest-asyncio
+  - pytest-cov
+  - pytest-mock
+  - hypothesis
+  # Code quality (dev)
+  - black
+  - flake8
+  - mypy
+  - isort
+  - pylint
+  # Jupyter (optional)
+  - jupyter
+  - ipykernel
