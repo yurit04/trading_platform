@@ -39,7 +39,7 @@ nano .env  # or use your preferred editor
 ```python
 # Create a simple backtest script
 from datetime import datetime
-from platform.core.engine import BacktestEngine
+from trading_platform.core.engine import BacktestEngine
 from strategies.examples.momentum import MomentumStrategy
 
 # Define universe
@@ -92,9 +92,9 @@ Create a new file in `strategies/examples/my_strategy.py`:
 
 ```python
 from typing import List
-from platform.strategy.base import Strategy
-from platform.core.event import MarketEvent, FillEvent
-from platform.core.types import Symbol
+from trading_platform.strategy.base import Strategy
+from trading_platform.core.event import MarketEvent, FillEvent
+from trading_platform.core.types import Symbol
 
 class MyStrategy(Strategy):
     """Your custom strategy."""

@@ -5,10 +5,10 @@ from typing import List
 from collections import deque
 import logging
 
-from platform.strategy.base import Strategy
-from platform.core.event import MarketEvent, FillEvent, OrderEvent
-from platform.core.enums import OrderType, OrderSide, SignalType
-from platform.core.types import Symbol
+from trading_platform.strategy.base import Strategy
+from trading_platform.core.event import MarketEvent, FillEvent, OrderEvent
+from trading_platform.core.enums import OrderType, OrderSide, SignalType
+from trading_platform.core.types import Symbol
 
 
 logger = logging.getLogger(__name__)

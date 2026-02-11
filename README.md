@@ -431,7 +431,7 @@ docker-compose logs -f platform
 ### Running Your First Backtest
 
 ```python
-from platform.core.engine import BacktestEngine
+from trading_platform.core.engine import BacktestEngine
 from strategies.examples.momentum import MomentumStrategy
 from datetime import datetime
 
@@ -461,7 +461,7 @@ results.generate_tearsheet('results/momentum_backtest.html')
 ### Transitioning to Live Trading
 
 ```python
-from platform.core.engine import LiveTradingEngine
+from trading_platform.core.engine import LiveTradingEngine
 from strategies.examples.momentum import MomentumStrategy
 
 # Create live trading engine (same strategy class!)
@@ -486,9 +486,9 @@ engine.start()
 ### Creating a Custom Strategy
 
 ```python
-from platform.strategy.base import Strategy
-from platform.core.event import MarketEvent, SignalEvent
-from platform.core.enums import SignalType
+from trading_platform.strategy.base import Strategy
+from trading_platform.core.event import MarketEvent, SignalEvent
+from trading_platform.core.enums import SignalType
 
 class MyStrategy(Strategy):
     def __init__(self, param1, param2):
@@ -526,7 +526,7 @@ class MyStrategy(Strategy):
 ### Configuring Risk Limits
 
 ```python
-from platform.risk.limits import RiskLimit, LimitType
+from trading_platform.risk.limits import RiskLimit, LimitType
 
 # Define risk limits
 limits = [
@@ -585,7 +585,7 @@ event_bus.subscribe(MarketEvent, handle_market_event)
 Access historical and live data through the DataManager:
 
 ```python
-from platform.data.manager import DataManager
+from trading_platform.data.manager import DataManager
 from datetime import datetime
 
 data_manager = DataManager()

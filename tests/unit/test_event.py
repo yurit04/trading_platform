@@ -4,10 +4,10 @@ Unit tests for the Event system.
 import pytest
 from datetime import datetime
 
-from platform.core.event import (
+from trading_platform.core.event import (
     MarketEvent, SignalEvent, OrderEvent, FillEvent
 )
-from platform.core.enums import (
+from trading_platform.core.enums import (
     OrderType, OrderSide, OrderStatus, SignalType, AssetClass
 )
 

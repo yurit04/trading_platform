@@ -242,7 +242,7 @@ trading_platform/
 
 ```python
 from datetime import datetime
-from platform.core.engine import BacktestEngine
+from trading_platform.core.engine import BacktestEngine
 from strategies.examples.momentum import MomentumStrategy
 
 # Create engine
@@ -269,9 +269,9 @@ print(results)
 ### Creating a Custom Strategy
 
 ```python
-from platform.strategy.base import Strategy
-from platform.core.event import MarketEvent, OrderEvent
-from platform.core.enums import OrderType, OrderSide
+from trading_platform.strategy.base import Strategy
+from trading_platform.core.event import MarketEvent, OrderEvent
+from trading_platform.core.enums import OrderType, OrderSide
 
 class MyStrategy(Strategy):
     def on_initialize(self):

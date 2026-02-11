@@ -16,8 +16,8 @@ import logging
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from platform.core.engine import BacktestEngine
-from platform.utils.logging import setup_logging
+from trading_platform.core.engine import BacktestEngine
+from trading_platform.utils.logging import setup_logging
 
 
 def load_config(config_path: str) -> dict:
