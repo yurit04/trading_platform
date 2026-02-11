@@ -13,8 +13,10 @@ from datetime import datetime
 import yaml
 import logging
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+# Add project root and src to path
+project_root = str(Path(__file__).parent.parent)
+sys.path.insert(0, project_root)
+sys.path.insert(0, str(Path(project_root) / 'src'))
 
 from trading_platform.core.engine import BacktestEngine
 from trading_platform.utils.logging import setup_logging
