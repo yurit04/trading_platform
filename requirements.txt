@@ -18,18 +18,18 @@ aiohttp
 
 # Financial data
 pandas-datareader
-# yfinance
+yfinance
 
 # Technical analysis
 pandas-ta
-# ta-lib
-# ta
+ta-lib
+ta
 
 # Machine learning
-# xgboost
-# cvxpy
-# riskfolio-lib
-# optuna
+xgboost
+cvxpy
+riskfolio-lib
+optuna
 
 # Visualization
 matplotlib
