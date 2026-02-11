@@ -8,7 +8,9 @@ from ..core.event_bus import EventBus
 from ..core.event import OrderEvent, FillEvent
 from ..core.types import OrderId
 from ..portfolio.portfolio import Portfolio
+from ..data.models import Bar
 from .order import Order
+from .brokers.simulated_broker import SimulatedBroker
 
 
 logger = logging.getLogger(__name__)
@@ -17,10 +19,10 @@ logger = logging.getLogger(__name__)
 class ExecutionEngine:
     """
     Manages order execution and lifecycle.
-    
+
     Routes orders to brokers and handles fill notifications.
     """
-    
+
     def __init__(
         self,
         event_bus: EventBus,
@@ -31,7 +33,7 @@ class ExecutionEngine:
     ):
         """
         Initialize execution engine.
-        
+
         Args:
             event_bus: Event bus for communication
             portfolio: Portfolio instance
@@ -42,25 +44,45 @@ class ExecutionEngine:
         self.event_bus = event_bus
         self.portfolio = portfolio
         self.mode = mode
-        self.broker = broker
+        self.broker_name = broker
         self.config = config or {}
-        
+
         self.orders: Dict[OrderId, Order] = {}
-        
+        self.current_bars: Dict[str, Bar] = {}
+
+        # Create broker instance based on mode
+        if mode == 'backtest':
+            self.broker = SimulatedBroker(self.config)
+        else:
+            self.broker = None  # Live broker set up separately
+
         # Subscribe to order events
         self.event_bus.subscribe(OrderEvent, self.handle_order_event)
-        
+
         logger.info(f"ExecutionEngine initialized in {mode} mode")
-    
+
+    def update_market_data(self, symbol: str, bar: Bar) -> None:
+        """
+        Update current market data for a symbol.
+
+        Called by the engine on each MarketEvent so the broker
+        has access to the current bar when executing orders.
+
+        Args:
+            symbol: Symbol to update
+            bar: Current bar data
+        """
+        self.current_bars[symbol] = bar
+
     def handle_order_event(self, event: OrderEvent) -> None:
         """
         Handle incoming order events.
-        
+
         Args:
             event: Order event to process
         """
         logger.info(f"Processing order: {event}")
-        
+
         # Create Order object
         order = Order(
             order_id=event.order_id,
@@ -72,23 +94,46 @@ class ExecutionEngine:
             stop_price=event.stop_price,
             strategy_id=event.strategy_id
         )
-        
+
         self.orders[order.order_id] = order
-        
-        # Execute order (simplified for now)
         self._execute_order(order)
-    
+
     def _execute_order(self, order: Order) -> None:
         """
-        Execute an order.
-        
+        Execute an order through the broker.
+
         Args:
             order: Order to execute
         """
-        # This is a simplified implementation
-        # In reality, this would interface with brokers
-        
-        logger.info(f"Executing order: {order}")
-        
-        # For now, just create a fill event
-        # Real implementation would handle order routing, partial fills, etc.
+        current_bar = self.current_bars.get(order.symbol)
+        if current_bar is None:
+            logger.warning(f"No market data for {order.symbol}, rejecting order")
+            order.reject("No market data available")
+            return
+
+        if self.broker is None:
+            logger.error("No broker configured")
+            order.reject("No broker configured")
+            return
+
+        try:
+            fill_event = self.broker.execute_order(order, current_bar)
+
+            # Update order status
+            order.update_fill(
+                quantity=fill_event.quantity,
+                price=fill_event.fill_price,
+                commission=fill_event.commission
+            )
+
+            # Publish fill event to event bus
+            self.event_bus.publish(fill_event)
+
+            logger.info(
+                f"Order filled: {order.symbol} {order.side.name} "
+                f"{order.quantity} @ {fill_event.fill_price:.2f}"
+            )
+
+        except Exception as e:
+            logger.error(f"Order execution failed: {e}", exc_info=True)
+            order.reject(str(e))

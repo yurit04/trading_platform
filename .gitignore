@@ -201,6 +201,10 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Market data and backtest results
+data/
+results/backtests/
+
 # macOS
 .DS_Store
 

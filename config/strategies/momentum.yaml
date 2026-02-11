@@ -30,14 +30,12 @@ universe:
     - MA
     - HD
     - DIS
-  
-  # Alternative: Dynamic universe with filters
-  # type: filter
-  # filters:
-  #   asset_class: equity
-  #   min_market_cap: 1000000000  # $1B
-  #   min_dollar_volume: 10000000  # $10M daily
-  #   exchanges: [NYSE, NASDAQ]
+
+# Data Configuration
+data:
+  provider: yahoo  # yahoo or csv
+  cache_dir: data/cache
+  csv_data_dir: data/historical
 
 # Risk Management
 risk:
@@ -45,19 +43,18 @@ risk:
   max_leverage: 1.0  # No leverage
   max_sector_exposure: 0.35  # 35% max per sector
   stop_loss_pct: 0.10  # 10% stop loss
-  
+
 # Execution
 execution:
   order_type: market  # market, limit, vwap, twap
   time_in_force: day
   max_order_size_pct: 0.05  # 5% of ADV
-  
+  commission_model: fixed_per_share
+  commission_rate: 0.005  # $0.005 per share
+  slippage_bps: 5  # 5 basis points
+
 # Backtesting
 backtest:
   start_date: "2020-01-01"
   end_date: "2023-12-31"
   initial_capital: 1000000
-  commission_model: fixed_per_share
-  commission_rate: 0.005  # $0.005 per share
-  slippage_model: volume_based
-  slippage_bps: 5  # 5 basis points

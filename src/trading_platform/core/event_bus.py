@@ -37,6 +37,7 @@ class EventBus:
         
         # For backtest mode - priority queue ordered by timestamp
         self._event_queue: Optional[PriorityQueue] = None
+        self._event_seq = 0  # Tiebreaker for events with same timestamp
         if mode == 'sync':
             self._event_queue = PriorityQueue()
         
@@ -134,10 +135,12 @@ class EventBus:
         if self.mode != 'sync' or self._event_queue is None:
             raise EventException("put() only available in sync mode")
         
-        # Priority queue uses (priority, item) tuples
+        # Priority queue uses (priority, seq, item) tuples
         # Use timestamp as priority (earlier events processed first)
+        # Sequence number breaks ties for events with the same timestamp
         priority = event.timestamp.timestamp()
-        self._event_queue.put((priority, event))
+        self._event_seq += 1
+        self._event_queue.put((priority, self._event_seq, event))
     
     def get(self, block: bool = True, timeout: Optional[float] = None) -> Optional[Event]:
         """
@@ -154,7 +157,7 @@ class EventBus:
             raise EventException("get() only available in sync mode")
         
         try:
-            _, event = self._event_queue.get(block=block, timeout=timeout)
+            _, _, event = self._event_queue.get(block=block, timeout=timeout)
             return event
         except Empty:
             return None
