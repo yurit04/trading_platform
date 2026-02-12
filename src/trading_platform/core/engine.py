@@ -120,16 +120,17 @@ class BacktestEngine(TradingEngine):
             if key in backtest_config and key not in execution_config:
                 execution_config[key] = backtest_config[key]
 
-        self.execution_engine = ExecutionEngine(
-            self.event_bus,
-            self.portfolio,
-            mode='backtest',
-            config=execution_config
-        )
         self.risk_manager = RiskManager(
             self.event_bus,
             self.portfolio,
             self.config.get('risk', {})
+        )
+        self.execution_engine = ExecutionEngine(
+            self.event_bus,
+            self.portfolio,
+            mode='backtest',
+            config=execution_config,
+            risk_manager=self.risk_manager
         )
 
         # Initialize strategies
@@ -276,6 +277,10 @@ class BacktestEngine(TradingEngine):
         # Merge all expanded metrics
         results.update(performance)
 
+        # Add risk metrics
+        if self.risk_manager is not None:
+            results['risk_metrics'] = self.risk_manager.calculate_portfolio_risk()
+
         # Attach raw data for report generation
         results['equity_curve'] = self.portfolio.equity_curve
         results['trade_history'] = self.portfolio.trade_history
@@ -315,17 +320,18 @@ class LiveTradingEngine(TradingEngine):
         # Initialize components
         self.data_manager = DataManager(self.event_bus, self.config.get('data', {}))
         self.portfolio = Portfolio(self.initial_capital, self.event_bus)
+        self.risk_manager = RiskManager(
+            self.event_bus,
+            self.portfolio,
+            self.config.get('risk', {})
+        )
         self.execution_engine = ExecutionEngine(
             self.event_bus,
             self.portfolio,
             mode='live',
             broker=self.broker,
-            config=self.config.get('execution', {})
-        )
-        self.risk_manager = RiskManager(
-            self.event_bus,
-            self.portfolio,
-            self.config.get('risk', {})
+            config=self.config.get('execution', {}),
+            risk_manager=self.risk_manager
         )
 
         # Initialize strategies

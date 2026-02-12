@@ -117,6 +117,18 @@ def display_results(results: dict, logger: logging.Logger) -> None:
     logger.info(f"  Max Consec. Wins:    {results.get('max_consecutive_wins', 0):>10d}")
     logger.info(f"  Max Consec. Losses:  {results.get('max_consecutive_losses', 0):>10d}")
     logger.info(f"  Avg Trade Duration:  {results.get('avg_trade_duration_days', 0):>10.1f} days")
+
+    risk = results.get('risk_metrics', {})
+    if risk:
+        logger.info("")
+        logger.info("  PORTFOLIO RISK")
+        logger.info(f"  VaR (95%):           {risk.get('var_95', 0):>10.2%}")
+        logger.info(f"  VaR (99%):           {risk.get('var_99', 0):>10.2%}")
+        logger.info(f"  CVaR (95%):          {risk.get('expected_shortfall_95', 0):>10.2%}")
+        logger.info(f"  Current Drawdown:    {risk.get('current_drawdown', 0):>10.2%}")
+        logger.info(f"  Gross Leverage:      {risk.get('gross_leverage', 0):>10.2f}x")
+        logger.info(f"  Largest Position:    {risk.get('largest_position_weight', 0):>10.2%}")
+        logger.info(f"  Open Positions:      {risk.get('num_positions', 0):>10d}")
     logger.info("=" * 70)
 
 
@@ -203,6 +215,7 @@ def main():
         equity_curve = results.pop('equity_curve', [])
         trade_history = results.pop('trade_history', [])
         positions = results.pop('positions', {})
+        risk_metrics = results.pop('risk_metrics', {})
 
         if not args.no_report:
             # Generate full report suite

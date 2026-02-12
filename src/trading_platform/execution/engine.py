@@ -29,7 +29,8 @@ class ExecutionEngine:
         portfolio: Portfolio,
         mode: str = 'backtest',
         broker: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
+        risk_manager=None
     ):
         """
         Initialize execution engine.
@@ -40,12 +41,14 @@ class ExecutionEngine:
             mode: 'backtest' or 'live'
             broker: Broker name (for live mode)
             config: Configuration dictionary
+            risk_manager: Optional RiskManager for pre-trade validation
         """
         self.event_bus = event_bus
         self.portfolio = portfolio
         self.mode = mode
         self.broker_name = broker
         self.config = config or {}
+        self.risk_manager = risk_manager
 
         self.orders: Dict[OrderId, Order] = {}
         self.current_bars: Dict[str, Bar] = {}
@@ -96,14 +99,15 @@ class ExecutionEngine:
         )
 
         self.orders[order.order_id] = order
-        self._execute_order(order)
+        self._execute_order(order, event)
 
-    def _execute_order(self, order: Order) -> None:
+    def _execute_order(self, order: Order, order_event: OrderEvent) -> None:
         """
         Execute an order through the broker.
 
         Args:
             order: Order to execute
+            order_event: Original OrderEvent for risk validation
         """
         current_bar = self.current_bars.get(order.symbol)
         if current_bar is None:
@@ -115,6 +119,16 @@ class ExecutionEngine:
             logger.error("No broker configured")
             order.reject("No broker configured")
             return
+
+        # Pre-trade risk validation
+        if self.risk_manager is not None:
+            passed, reason = self.risk_manager.validate_order(
+                order_event, current_bar.close
+            )
+            if not passed:
+                logger.warning(f"Order rejected by risk manager: {reason}")
+                order.reject(reason)
+                return
 
         try:
             fill_event = self.broker.execute_order(order, current_bar)
@@ -133,6 +147,16 @@ class ExecutionEngine:
                 f"Order filled: {order.symbol} {order.side.name} "
                 f"{order.quantity} @ {fill_event.fill_price:.2f}"
             )
+
+            # Post-trade risk monitoring
+            if self.risk_manager is not None:
+                alerts = self.risk_manager.check_portfolio_risk()
+                for alert in alerts:
+                    if alert['severity'] == 'CRITICAL':
+                        self.risk_manager._publish_risk_event(
+                            alert['limit_type'], alert['severity'],
+                            alert['message'], alert['details']
+                        )
 
         except Exception as e:
             logger.error(f"Order execution failed: {e}", exc_info=True)
