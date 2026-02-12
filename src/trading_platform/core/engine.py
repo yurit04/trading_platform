@@ -261,23 +261,27 @@ class BacktestEngine(TradingEngine):
         )
 
     def _generate_results(self) -> Dict[str, Any]:
-        """Generate backtest results."""
+        """Generate backtest results including all metrics and raw data."""
         if self.portfolio is None:
             return {}
 
         performance = self.portfolio.get_performance_metrics()
 
-        return {
+        results = {
             'start_date': self.start_date,
             'end_date': self.end_date,
             'initial_capital': self.initial_capital,
             'final_value': self.portfolio.total_value,
-            'total_return': performance.get('total_return', 0),
-            'sharpe_ratio': performance.get('sharpe_ratio', 0),
-            'max_drawdown': performance.get('max_drawdown', 0),
-            'num_trades': performance.get('num_trades', 0),
-            'win_rate': performance.get('win_rate', 0),
         }
+        # Merge all expanded metrics
+        results.update(performance)
+
+        # Attach raw data for report generation
+        results['equity_curve'] = self.portfolio.equity_curve
+        results['trade_history'] = self.portfolio.trade_history
+        results['positions'] = dict(self.portfolio.positions)
+
+        return results
 
 
 class LiveTradingEngine(TradingEngine):
