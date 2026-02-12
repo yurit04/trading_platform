@@ -1,0 +1,58 @@
+# Mean Reversion Strategy Configuration
+
+strategy:
+  name: MeanReversionStrategy
+  class: strategies.examples.mean_reversion.MeanReversionStrategy
+  enabled: true
+
+# Strategy Parameters
+parameters:
+  lookback_period: 20  # Days to calculate SMA and rolling std
+  entry_threshold: 2.0  # Z-score threshold for entry (buy when < -2.0)
+  exit_threshold: 0.5  # Z-score threshold for exit (sell when > 0.5)
+  max_positions: 5  # Maximum simultaneous positions
+
+# Universe Definition
+universe:
+  type: static  # static, dynamic, or filter
+  symbols:
+    - AAPL
+    - MSFT
+    - GOOGL
+    - AMZN
+    - META
+    - JPM
+    - V
+    - WMT
+    - JNJ
+    - PG
+    - MA
+    - HD
+    - DIS
+    - BAC
+    - XOM
+
+# Data Configuration
+data:
+  provider: yahoo  # yahoo or csv
+  cache_dir: data/cache
+
+# Risk Management
+risk:
+  max_position_size: 0.25  # 25% max per position
+  max_order_value: 0.25  # 25% max single order (matches position size for 5-position strategy)
+  max_leverage: 1.0  # No leverage
+  max_sector_exposure: 0.40  # 40% max per sector
+  stop_loss_pct: 0.08  # 8% stop loss
+
+# Execution
+execution:
+  commission_model: fixed_per_share
+  commission_rate: 0.005  # $0.005 per share
+  slippage_bps: 5  # 5 basis points
+
+# Backtesting
+backtest:
+  start_date: "2020-01-01"
+  end_date: "2023-12-31"
+  initial_capital: 1000000

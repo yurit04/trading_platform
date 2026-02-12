@@ -56,8 +56,12 @@ class ExecutionEngine:
         # Create broker instance based on mode
         if mode == 'backtest':
             self.broker = SimulatedBroker(self.config)
+        elif broker == 'ib':
+            from .brokers.ib_broker import IBBroker
+            self.broker = IBBroker(self.config)
+            self.broker.connect()
         else:
-            self.broker = None  # Live broker set up separately
+            self.broker = None  # Other live brokers set up separately
 
         # Subscribe to order events
         self.event_bus.subscribe(OrderEvent, self.handle_order_event)

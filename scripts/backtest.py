@@ -128,7 +128,14 @@ def display_results(results: dict, logger: logging.Logger) -> None:
         logger.info(f"  Current Drawdown:    {risk.get('current_drawdown', 0):>10.2%}")
         logger.info(f"  Gross Leverage:      {risk.get('gross_leverage', 0):>10.2f}x")
         logger.info(f"  Largest Position:    {risk.get('largest_position_weight', 0):>10.2%}")
+        logger.info(f"  Max Sector Exp.:     {risk.get('max_sector_exposure', 0):>10.2%}")
         logger.info(f"  Open Positions:      {risk.get('num_positions', 0):>10d}")
+        sector_exp = risk.get('sector_exposures', {})
+        if sector_exp:
+            logger.info("")
+            logger.info("  SECTOR EXPOSURES")
+            for sector, exp in sorted(sector_exp.items(), key=lambda x: -x[1]):
+                logger.info(f"    {sector:<26s} {exp:>8.2%}")
     logger.info("=" * 70)
 
 

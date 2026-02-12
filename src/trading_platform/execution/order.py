@@ -101,9 +101,8 @@ class Order:
             self.average_fill_price = price
         else:
             total_value = (self.average_fill_price * self.filled_quantity) + (price * quantity)
-            self.filled_quantity += quantity
-            self.average_fill_price = total_value / self.filled_quantity
-        
+            self.average_fill_price = total_value / (self.filled_quantity + quantity)
+
         self.filled_quantity += quantity
         self.commission += commission
         self.updated_at = datetime.now()

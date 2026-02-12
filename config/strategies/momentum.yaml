@@ -53,6 +53,13 @@ execution:
   commission_rate: 0.005  # $0.005 per share
   slippage_bps: 5  # 5 basis points
 
+# Optimization (used by scripts/optimize.py)
+optimization:
+  parameters:
+    lookback_period: [10, 15, 20, 30, 40]
+    top_n: [3, 5, 10]
+    rebalance_days: [5, 10, 20]
+
 # Backtesting
 backtest:
   start_date: "2020-01-01"

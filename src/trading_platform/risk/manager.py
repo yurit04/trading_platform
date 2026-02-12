@@ -40,11 +40,18 @@ class RiskManager:
         self.max_leverage = self.config.get('max_leverage', 1.0)
         self.max_drawdown = self.config.get('max_drawdown', -0.20)
         self.stop_loss_pct = self.config.get('stop_loss_pct', 0.10)
+        self.max_sector_exposure = self.config.get('max_sector_exposure', 0.35)
+
+        # Sector mapping — config can override via risk.sector_map
+        self.sector_map: Dict[str, str] = self.config.get('sector_map', {})
+        if not self.sector_map:
+            self.sector_map = self._default_sector_map()
 
         logger.info(
             f"RiskManager initialized: max_position={self.max_position_size:.0%}, "
             f"max_order={self.max_order_value:.0%}, max_concentration={self.max_concentration:.0%}, "
-            f"max_leverage={self.max_leverage}, max_drawdown={self.max_drawdown:.0%}"
+            f"max_leverage={self.max_leverage}, max_drawdown={self.max_drawdown:.0%}, "
+            f"max_sector_exposure={self.max_sector_exposure:.0%}"
         )
 
     def validate_order(self, event: OrderEvent, current_price: float) -> Tuple[bool, str]:
@@ -123,7 +130,26 @@ class RiskManager:
                 })
                 return False, reason
 
-        # 4. Drawdown check — block new buys if max drawdown breached
+        # 4. Sector exposure check (for buys)
+        if is_buy:
+            sector = self.sector_map.get(event.symbol)
+            if sector:
+                sector_exposure = self._sector_exposure(sector, portfolio_value)
+                added_weight = order_value / portfolio_value
+                if sector_exposure + added_weight > self.max_sector_exposure:
+                    reason = (
+                        f"Sector '{sector}' exposure would reach "
+                        f"{sector_exposure + added_weight:.1%}, exceeding "
+                        f"max_sector_exposure limit {self.max_sector_exposure:.1%}"
+                    )
+                    self._publish_risk_event('SECTOR_EXPOSURE', 'WARNING', reason, {
+                        'symbol': event.symbol, 'sector': sector,
+                        'current_exposure': sector_exposure,
+                        'limit': self.max_sector_exposure
+                    })
+                    return False, reason
+
+        # 5. Drawdown check — block new buys if max drawdown breached
         if is_buy:
             current_dd = self._current_drawdown()
             if current_dd < self.max_drawdown:
@@ -192,6 +218,17 @@ class RiskManager:
                     'details': {'symbol': symbol, 'weight': weight, 'limit': self.max_concentration}
                 })
 
+        # Sector exposure check
+        sector_exposures = self._all_sector_exposures(portfolio_value)
+        for sector, exposure in sector_exposures.items():
+            if exposure > self.max_sector_exposure:
+                alerts.append({
+                    'limit_type': 'SECTOR_EXPOSURE',
+                    'severity': 'WARNING',
+                    'message': f"Sector '{sector}' exposure {exposure:.1%} exceeds limit {self.max_sector_exposure:.1%}",
+                    'details': {'sector': sector, 'exposure': exposure, 'limit': self.max_sector_exposure}
+                })
+
         return alerts
 
     def calculate_portfolio_risk(self) -> Dict[str, float]:
@@ -237,6 +274,10 @@ class RiskManager:
                 tail = returns[returns <= var_95]
                 expected_shortfall_95 = float(np.mean(tail)) if len(tail) > 0 else var_95
 
+        # Sector exposures
+        sector_exposures = self._all_sector_exposures(portfolio_value) if portfolio_value > 0 else {}
+        max_sector_exp = max(sector_exposures.values()) if sector_exposures else 0.0
+
         return {
             'var_95': var_95,
             'var_99': var_99,
@@ -245,6 +286,8 @@ class RiskManager:
             'gross_leverage': leverage,
             'largest_position_weight': largest_weight,
             'num_positions': num_positions,
+            'max_sector_exposure': max_sector_exp,
+            'sector_exposures': sector_exposures,
         }
 
     def _current_drawdown(self) -> float:
@@ -257,6 +300,54 @@ class RiskManager:
             return 0.0
         current = equity_values[-1]
         return (current - peak) / peak
+
+    def _sector_exposure(self, sector: str, portfolio_value: float) -> float:
+        """Calculate current exposure to a given sector as fraction of portfolio."""
+        if portfolio_value <= 0:
+            return 0.0
+        exposure = 0.0
+        for symbol, position in self.portfolio.positions.items():
+            if position.quantity == 0:
+                continue
+            if self.sector_map.get(symbol) == sector:
+                exposure += abs(position.market_value) / portfolio_value
+        return exposure
+
+    def _all_sector_exposures(self, portfolio_value: float) -> Dict[str, float]:
+        """Calculate exposure for all sectors with open positions."""
+        if portfolio_value <= 0:
+            return {}
+        exposures: Dict[str, float] = {}
+        for symbol, position in self.portfolio.positions.items():
+            if position.quantity == 0:
+                continue
+            sector = self.sector_map.get(symbol, 'Unknown')
+            weight = abs(position.market_value) / portfolio_value
+            exposures[sector] = exposures.get(sector, 0.0) + weight
+        return exposures
+
+    @staticmethod
+    def _default_sector_map() -> Dict[str, str]:
+        """Default sector mapping for common US equities."""
+        return {
+            'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology',
+            'GOOG': 'Technology', 'META': 'Technology', 'NVDA': 'Technology',
+            'AMZN': 'Consumer Discretionary', 'TSLA': 'Consumer Discretionary',
+            'HD': 'Consumer Discretionary', 'DIS': 'Consumer Discretionary',
+            'JPM': 'Financials', 'V': 'Financials', 'MA': 'Financials',
+            'BAC': 'Financials', 'GS': 'Financials',
+            'JNJ': 'Healthcare', 'UNH': 'Healthcare', 'PFE': 'Healthcare',
+            'ABBV': 'Healthcare', 'MRK': 'Healthcare',
+            'PG': 'Consumer Staples', 'KO': 'Consumer Staples',
+            'PEP': 'Consumer Staples', 'WMT': 'Consumer Staples',
+            'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy',
+            'NEE': 'Utilities', 'DUK': 'Utilities',
+            'AMT': 'Real Estate', 'PLD': 'Real Estate',
+            'CAT': 'Industrials', 'HON': 'Industrials', 'UPS': 'Industrials',
+            'LIN': 'Materials', 'APD': 'Materials',
+            'T': 'Communication Services', 'VZ': 'Communication Services',
+            'NFLX': 'Communication Services',
+        }
 
     def _publish_risk_event(
         self, limit_type: str, severity: str, message: str,

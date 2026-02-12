@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(python scripts/backtest.py:*)",
+      "Bash(python -c:*)",
+      "Bash(PYTHONPATH=src:. python:*)",
+      "Bash(python scripts/optimize.py:*)"
     ]
   }
 }
