@@ -112,7 +112,8 @@ class BacktestEngine(TradingEngine):
 
         # Initialize components
         self.data_manager = DataManager(self.event_bus, self.config.get('data', {}))
-        self.portfolio = Portfolio(self.initial_capital, self.event_bus)
+        self.portfolio = Portfolio(self.initial_capital, self.event_bus,
+                                   start_time=self.start_date)
 
         # Merge backtest-level execution config with execution section
         execution_config = dict(self.config.get('execution', {}))

@@ -5,7 +5,8 @@
       "Bash(python scripts/backtest.py:*)",
       "Bash(python -c:*)",
       "Bash(PYTHONPATH=src:. python:*)",
-      "Bash(python scripts/optimize.py:*)"
+      "Bash(python scripts/optimize.py:*)",
+      "Bash(python -m pytest:*)"
     ]
   }
 }

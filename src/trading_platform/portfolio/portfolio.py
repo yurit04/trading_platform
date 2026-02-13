@@ -20,7 +20,8 @@ class Portfolio:
     Manages portfolio positions, cash, and performance tracking.
     """
 
-    def __init__(self, initial_cash: float, event_bus: EventBus):
+    def __init__(self, initial_cash: float, event_bus: EventBus,
+                 start_time: Optional[datetime] = None):
         self.initial_cash = initial_cash
         self.cash = initial_cash
         self.event_bus = event_bus
@@ -29,7 +30,7 @@ class Portfolio:
         self.trade_history: List[FillEvent] = []
 
         # Performance tracking
-        self.equity_curve: List[tuple] = [(datetime.now(), initial_cash)]
+        self.equity_curve: List[tuple] = [(start_time or datetime.now(), initial_cash)]
 
         # Subscribe to fill events
         self.event_bus.subscribe(FillEvent, self.handle_fill_event)
