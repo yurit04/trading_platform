@@ -202,7 +202,7 @@ cython_debug/
 .cursorindexingignore
 
 # Market data and backtest results
-data/
+/data/
 results/backtests/
 
 # macOS
