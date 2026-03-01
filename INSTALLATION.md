@@ -43,7 +43,7 @@
 Test your installation:
 
 ```python
-python -c "from trading_platform.core.engine import BacktestEngine; print('✓ Installation successful!')"
+python -c "from trading_platform.core.engine import BacktestEngine; print('✓ Installation successful')"
 ```
 
 ## Next Steps
