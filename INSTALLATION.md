@@ -58,7 +58,7 @@ If you prefer Docker:
 
 ```bash
 docker-compose up -d
-docker-compose exec platform python -c "from trading_platform.core.engine import BacktestEngine; print('✓ Docker installation successful!')"
+docker-compose exec platform python -c "from trading_platform.core.engine import BacktestEngine; print('✓ Docker installation successful')"
 ```
 
 ## Troubleshooting
