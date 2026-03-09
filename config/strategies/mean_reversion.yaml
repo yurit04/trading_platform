@@ -51,6 +51,13 @@ execution:
   commission_rate: 0.005  # $0.005 per share
   slippage_bps: 5  # 5 basis points
 
+# Optimization (used by scripts/optimize.py and scripts/monte_carlo_test.py)
+optimization:
+  parameters:
+    lookback_period: [10, 15, 20, 30]
+    entry_threshold: [1.5, 2.0, 2.5]
+    exit_threshold: [0.0, 0.5, 1.0]
+
 # Backtesting
 backtest:
   start_date: "2020-01-01"
