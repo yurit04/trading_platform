@@ -9,6 +9,12 @@ MonteCarloTradeTest — takes the stitched out-of-sample round-trip trades from 
                       the distribution of equity curves / drawdowns / return:drawdown
                       ratios.  The headline score is the *median* return:drawdown
                       ratio across all simulations.
+
+BootstrapTradeTest — bootstrap (with-replacement) variant of MonteCarloTradeTest.
+                     Each simulation draws n trades from the pool WITH replacement,
+                     so the same trade may appear multiple times and some original
+                     trades may not appear at all.  Reports the *median* Sharpe,
+                     Sortino, Calmar, and Return-to-Drawdown across all simulations.
 """
 from typing import List, Tuple, Dict, Optional
 from datetime import datetime
@@ -408,5 +414,327 @@ class MonteCarloTradeTest:
             f"    p5 / p50 / p95:  "
             f" {fmt_pct(pct['drawdown']['p5'])} / {fmt_pct(pct['drawdown']['p50'])} / {fmt_pct(pct['drawdown']['p95'])}",
             "=" * 65,
+        ]
+        return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+
+
+class BootstrapTradeTest:
+    """
+    Bootstrap (with-replacement) Monte Carlo simulation on round-trip trades.
+
+    Unlike MonteCarloTradeTest (which shuffles/permutes the existing trades
+    without replacement), this test draws n trades WITH replacement for each
+    simulation — so the same trade can appear multiple times and some original
+    trades may not appear at all.  This is classical bootstrap resampling.
+
+    Metrics computed per simulation path:
+      - sharpe_ratio            mean excess per-trade return / std × ann_factor
+      - sortino_ratio           mean excess / downside-std × ann_factor
+      - calmar_ratio            annualised return / abs(max_drawdown)
+      - return_drawdown_ratio   total_return / abs(max_drawdown)
+
+    If ``trades_per_year`` is provided, Sharpe / Sortino are annualised
+    (multiplied by sqrt(trades_per_year)) and Calmar uses CAGR instead of
+    total return.  If omitted, Sharpe / Sortino are per-trade-step
+    (unannualised) and Calmar equals return_drawdown_ratio.
+
+    The headline output is the *median* of each metric across all simulations.
+    """
+
+    def __init__(
+        self,
+        trades: List[Dict],
+        initial_capital: float,
+        n_simulations: int = 1000,
+        trades_per_year: Optional[float] = None,
+        risk_free_rate: float = 0.02,
+        random_seed: Optional[int] = None,
+    ):
+        """
+        Args:
+            trades: List of round-trip trade dicts, each with a 'pnl' key
+                    (dollar P&L for that trade).  Produced by
+                    PerformanceMetrics._compute_round_trip_trades().
+            initial_capital: Starting portfolio value used to compute
+                             return / drawdown as percentages.
+            n_simulations: Number of bootstrap samples to draw.
+            trades_per_year: Used to annualise Sharpe, Sortino, and Calmar.
+                             If None, Sharpe/Sortino are per-trade-step and
+                             Calmar equals return_drawdown_ratio.
+            risk_free_rate: Annual risk-free rate (used only when
+                            trades_per_year is provided).
+            random_seed: Seed for reproducibility.
+        """
+        if not trades:
+            raise ValueError("trades list is empty — nothing to simulate.")
+        if initial_capital <= 0:
+            raise ValueError("initial_capital must be positive.")
+
+        self.trades = trades
+        self.initial_capital = initial_capital
+        self.n_simulations = n_simulations
+        self.trades_per_year = trades_per_year
+        self.risk_free_rate = risk_free_rate
+        self.rng = np.random.default_rng(random_seed)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _equity_from_pnls(pnls: np.ndarray, initial_capital: float) -> np.ndarray:
+        """Build equity array [initial, after_t1, after_t2, …] from a PnL vector."""
+        return np.concatenate([[initial_capital], initial_capital + np.cumsum(pnls)])
+
+    @staticmethod
+    def _trade_returns(equity: np.ndarray) -> np.ndarray:
+        """Per-trade % returns: pnl[i] / equity_before_trade[i]."""
+        pre_trade = equity[:-1]
+        pnls = np.diff(equity)
+        with np.errstate(invalid='ignore', divide='ignore'):
+            returns = np.where(pre_trade > 0, pnls / pre_trade, 0.0)
+        return returns
+
+    @staticmethod
+    def _max_drawdown(equity: np.ndarray) -> float:
+        """Max drawdown as a negative fraction (e.g. -0.20 = -20%)."""
+        running_max = np.maximum.accumulate(equity)
+        with np.errstate(invalid='ignore', divide='ignore'):
+            dd = np.where(running_max > 0, (equity - running_max) / running_max, 0.0)
+        return float(dd.min())
+
+    @staticmethod
+    def _total_return(equity: np.ndarray) -> float:
+        if equity[0] == 0:
+            return 0.0
+        return float((equity[-1] - equity[0]) / equity[0])
+
+    def _ann_factor(self) -> float:
+        """sqrt(trades_per_year) annualisation factor, or 1.0 if not set."""
+        if self.trades_per_year and self.trades_per_year > 0:
+            return float(np.sqrt(self.trades_per_year))
+        return 1.0
+
+    def _rf_per_trade(self) -> float:
+        """Risk-free rate per trade step, or 0.0 if trades_per_year is not set."""
+        if self.trades_per_year and self.trades_per_year > 0:
+            return self.risk_free_rate / self.trades_per_year
+        return 0.0
+
+    def _compute_metrics(self, equity: np.ndarray) -> Dict:
+        """Compute all four metrics from an equity array."""
+        trade_rets = self._trade_returns(equity)
+        n = len(trade_rets)
+        ann = self._ann_factor()
+        rf = self._rf_per_trade()
+
+        total_ret = self._total_return(equity)
+        max_dd = self._max_drawdown(equity)
+
+        # Sharpe: mean excess / std × ann_factor
+        excess = trade_rets - rf
+        std = float(np.std(excess, ddof=1)) if n > 1 else 0.0
+        sharpe = float(np.mean(excess) / std * ann) if std > 0 else 0.0
+
+        # Sortino: mean excess / downside-vol × ann_factor
+        # downside_vol uses all returns (zeros for positive), giving a conservative estimate
+        downside = np.minimum(excess, 0.0)
+        downside_var = float(np.mean(downside ** 2))
+        downside_vol = float(np.sqrt(downside_var)) * ann if downside_var > 0 else 0.0
+        sortino = float(np.mean(excess) * ann / downside_vol) if downside_vol > 0 else 0.0
+
+        # Calmar: CAGR / abs(max_drawdown) when trades_per_year is known; else total_return
+        if self.trades_per_year and self.trades_per_year > 0 and n > 0:
+            annualized_ret = float((1.0 + total_ret) ** (self.trades_per_year / n) - 1.0)
+        else:
+            annualized_ret = total_ret
+
+        if max_dd == 0:
+            calmar = float('inf') if annualized_ret > 0 else 0.0
+        else:
+            calmar = annualized_ret / abs(max_dd)
+
+        # Return / Drawdown
+        if max_dd == 0:
+            rdr = float('inf') if total_ret > 0 else 0.0
+        else:
+            rdr = total_ret / abs(max_dd)
+
+        return {
+            'sharpe': sharpe,
+            'sortino': sortino,
+            'calmar': calmar,
+            'return_drawdown_ratio': rdr,
+            'total_return': total_ret,
+            'max_drawdown': max_dd,
+        }
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def observed_stats(self) -> Dict:
+        """
+        Metrics for the trades in their original (chronological) order.
+        Useful for comparison against the bootstrapped distribution.
+        """
+        pnls = np.array([t['pnl'] for t in self.trades])
+        equity = self._equity_from_pnls(pnls, self.initial_capital)
+        stats = self._compute_metrics(equity)
+        stats['n_trades'] = len(self.trades)
+        stats['final_equity'] = float(equity[-1])
+        return stats
+
+    def run(self) -> Dict:
+        """
+        Run the bootstrap simulation.
+
+        Returns a dict with keys:
+            observed          — metrics on the original (ordered) trade sequence
+            medians           — median of each metric across simulations
+                                {'sharpe', 'sortino', 'calmar', 'return_drawdown_ratio'}
+            percentiles       — per-metric {'p5', 'p25', 'p50', 'p75', 'p95'}
+            n_simulations     — number of simulations run
+            n_trades          — number of trades in the pool
+            trades_per_year   — annualisation parameter (None if not provided)
+            annualized        — True if annualisation was applied
+        """
+        pnls = np.array([t['pnl'] for t in self.trades])
+        n = len(pnls)
+
+        logger.info(
+            f"Bootstrap trade simulation: n_trades={n}, "
+            f"n_simulations={self.n_simulations}, "
+            f"initial_capital={self.initial_capital:,.2f}, "
+            f"trades_per_year={self.trades_per_year}"
+        )
+
+        sim_sharpe  = np.empty(self.n_simulations)
+        sim_sortino = np.empty(self.n_simulations)
+        sim_calmar  = np.empty(self.n_simulations)
+        sim_rdr     = np.empty(self.n_simulations)
+
+        for i in range(self.n_simulations):
+            sampled = self.rng.choice(pnls, size=n, replace=True)
+            equity = self._equity_from_pnls(sampled, self.initial_capital)
+            m = self._compute_metrics(equity)
+            sim_sharpe[i]  = m['sharpe']
+            sim_sortino[i] = m['sortino']
+            sim_calmar[i]  = m['calmar']
+            sim_rdr[i]     = m['return_drawdown_ratio']
+
+        def pctiles(arr: np.ndarray) -> Dict:
+            finite = arr[np.isfinite(arr)]
+            if len(finite) == 0:
+                return {p: float('nan') for p in ('p5', 'p25', 'p50', 'p75', 'p95')}
+            return {
+                'p5':  float(np.percentile(finite, 5)),
+                'p25': float(np.percentile(finite, 25)),
+                'p50': float(np.percentile(finite, 50)),
+                'p75': float(np.percentile(finite, 75)),
+                'p95': float(np.percentile(finite, 95)),
+            }
+
+        def safe_median(arr: np.ndarray) -> float:
+            finite = arr[np.isfinite(arr)]
+            return float(np.median(finite)) if len(finite) > 0 else float('nan')
+
+        annualized = bool(self.trades_per_year and self.trades_per_year > 0)
+        medians = {
+            'sharpe':                safe_median(sim_sharpe),
+            'sortino':               safe_median(sim_sortino),
+            'calmar':                safe_median(sim_calmar),
+            'return_drawdown_ratio': safe_median(sim_rdr),
+        }
+
+        result = {
+            'observed':        self.observed_stats(),
+            'medians':         medians,
+            'percentiles': {
+                'sharpe':                pctiles(sim_sharpe),
+                'sortino':               pctiles(sim_sortino),
+                'calmar':                pctiles(sim_calmar),
+                'return_drawdown_ratio': pctiles(sim_rdr),
+            },
+            'n_simulations':   self.n_simulations,
+            'n_trades':        n,
+            'trades_per_year': self.trades_per_year,
+            'annualized':      annualized,
+        }
+
+        logger.info(
+            f"  medians — sharpe={medians['sharpe']:.4f}, "
+            f"sortino={medians['sortino']:.4f}, "
+            f"calmar={medians['calmar']:.4f}, "
+            f"rdr={medians['return_drawdown_ratio']:.4f}"
+        )
+        return result
+
+    @staticmethod
+    def summarize(result: Dict) -> str:
+        """Return a formatted text summary of bootstrap simulation results."""
+        obs = result['observed']
+        med = result['medians']
+        pct = result['percentiles']
+        ann = result['annualized']
+        tpy = result['trades_per_year']
+
+        ann_note = (
+            f"annualised ({tpy:.0f} trades/yr)" if ann
+            else "per-trade step, unannualised"
+        )
+
+        def fv(v: float, as_pct: bool = False) -> str:
+            """Format a float value; return 'N/A' for nan/inf."""
+            if v != v or not np.isfinite(v):
+                return f"{'N/A':>10}"
+            if as_pct:
+                return f"{v:>+10.2%}"
+            return f"{v:>10.4f}"
+
+        col_w = 10
+        metric_w = 24
+        header = (
+            f"  {'Metric':<{metric_w}}"
+            f"  {'Observed':>{col_w}}"
+            f"  {'Median':>{col_w}}"
+            f"  {'p5':>{col_w}}  {'p25':>{col_w}}  {'p50':>{col_w}}"
+            f"  {'p75':>{col_w}}  {'p95':>{col_w}}"
+        )
+        sep = "  " + "-" * (metric_w + 7 * (col_w + 2))
+
+        def metric_row(label: str, key: str, as_pct: bool = False) -> str:
+            p = pct[key]
+            return (
+                f"  {label:<{metric_w}}"
+                f"  {fv(obs[key], as_pct)}"
+                f"  {fv(med[key], as_pct)}"
+                f"  {fv(p['p5'], as_pct)}  {fv(p['p25'], as_pct)}  {fv(p['p50'], as_pct)}"
+                f"  {fv(p['p75'], as_pct)}  {fv(p['p95'], as_pct)}"
+            )
+
+        lines = [
+            "=" * 80,
+            "BOOTSTRAP MONTE CARLO TRADE SIMULATION",
+            "=" * 80,
+            f"  Trades in pool:    {result['n_trades']:>10d}",
+            f"  Simulations:       {result['n_simulations']:>10d}",
+            f"  Sharpe / Sortino:  {ann_note}",
+            "",
+            header,
+            sep,
+            metric_row("Sharpe",               "sharpe"),
+            metric_row("Sortino",              "sortino"),
+            metric_row("Calmar",               "calmar"),
+            metric_row("Return / Drawdown",    "return_drawdown_ratio"),
+            sep,
+            f"  {'Observed equity stats':<{metric_w}}",
+            f"    Total return:    {fv(obs['total_return'], as_pct=True)}",
+            f"    Max drawdown:    {fv(obs['max_drawdown'], as_pct=True)}",
+            f"    Final equity:    ${obs['final_equity']:>12,.2f}",
+            "=" * 80,
         ]
         return "\n".join(lines)

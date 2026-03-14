@@ -2,16 +2,25 @@
 """
 Walk-forward OOS trade collection + Monte Carlo simulation.
 
+Two simulation modes are supported (--mode):
+
+  shuffle   (default)
+    Reshuffles the OOS trade sequence N times without replacement.
+    Headline score: median return/drawdown ratio.
+
+  bootstrap
+    Samples N trades WITH replacement for each simulation (same trade may
+    appear multiple times; some original trades may not appear at all).
+    Reports median Sharpe, Sortino, Calmar, and Return-to-Drawdown.
+
 Workflow:
   1. Run a walk-forward optimisation over the full date range.
      For each fold: optimise on the training window, then run the best
      parameters on the out-of-sample window and collect the round-trip trades.
   2. Stitch all OOS round-trip trades together into one sequence.
   3. Gate check: the stitched return/drawdown must exceed --min-ratio (default 2.0).
-  4. Run a Monte Carlo simulation: reshuffle the trade sequence N times,
-     rebuild equity curves, and compute return / drawdown ratios.
-  5. Report the *median* return/drawdown ratio across simulations as the
-     headline score, along with the full distribution.
+  4. Run the selected Monte Carlo simulation.
+  5. Report median metric(s) and full percentile distribution.
 
 Usage:
     python scripts/monte_carlo_test.py --config config/strategies/momentum.yaml
@@ -20,6 +29,8 @@ Usage:
         --folds 5 --train-ratio 0.7 --simulations 2000 --min-ratio 2.0 --seed 42
     python scripts/monte_carlo_test.py --config config/strategies/momentum.yaml \\
         --no-gate --output results/mc/momentum_mc.yaml
+    python scripts/monte_carlo_test.py --config config/strategies/momentum.yaml \\
+        --mode bootstrap --trades-per-year 52
 """
 import argparse
 import copy
@@ -37,7 +48,7 @@ sys.path.insert(0, str(Path(project_root) / 'src'))
 
 from trading_platform.core.engine import BacktestEngine
 from trading_platform.analytics.metrics import PerformanceMetrics
-from trading_platform.analytics.overfitting import MonteCarloTradeTest
+from trading_platform.analytics.overfitting import MonteCarloTradeTest, BootstrapTradeTest
 from trading_platform.utils.logging import setup_logging
 
 
@@ -57,6 +68,15 @@ def parse_args():
                         help='Fraction of each fold used for training (default: 0.7)')
     parser.add_argument('--opt-metric', type=str, default='sharpe_ratio',
                         help='Metric used to pick best params in training (default: sharpe_ratio)')
+    parser.add_argument('--mode', type=str, default='shuffle',
+                        choices=['shuffle', 'bootstrap'],
+                        help='Simulation mode: shuffle (permutation, no replacement) or '
+                             'bootstrap (with replacement, reports Sharpe/Sortino/Calmar/RDR). '
+                             'Default: shuffle')
+    parser.add_argument('--trades-per-year', type=float, default=None,
+                        help='Expected trades per year; used to annualise Sharpe, Sortino, '
+                             'and Calmar in bootstrap mode. If omitted, metrics are '
+                             'per-trade-step (unannualised).')
     parser.add_argument('--simulations', type=int, default=1000,
                         help='Number of Monte Carlo simulations (default: 1000)')
     parser.add_argument('--min-ratio', type=float, default=2.0,
@@ -309,9 +329,12 @@ def main():
 
     config = _load_config(args.config)
     logger.info(f"Config:      {args.config}")
+    logger.info(f"Mode:        {args.mode}")
     logger.info(f"Folds:       {args.folds}   Train ratio: {args.train_ratio:.0%}")
     logger.info(f"Opt metric:  {args.opt_metric}")
     logger.info(f"Simulations: {args.simulations}   Min ratio gate: {args.min_ratio}")
+    if args.mode == 'bootstrap' and args.trades_per_year:
+        logger.info(f"Trades/yr:   {args.trades_per_year}")
 
     backtest_cfg = config.get('backtest', {})
     start_date = datetime.strptime(backtest_cfg.get('start_date', '2020-01-01'), '%Y-%m-%d')
@@ -351,53 +374,92 @@ def main():
     logger.info(f"\nTotal OOS trades collected: {len(all_oos_trades)}")
 
     # --- Step 2: gate check on stitched OOS ---
-    mc_test = MonteCarloTradeTest(
+    # Use MonteCarloTradeTest for the gate check regardless of mode (it only
+    # calls observed_stats(), which is the same calculation for both modes).
+    gate_test = MonteCarloTradeTest(
         trades=all_oos_trades,
         initial_capital=initial_capital,
         n_simulations=args.simulations,
         random_seed=args.seed,
     )
-    obs = mc_test.observed_stats()
-    gate_pass = obs['return_drawdown_ratio'] >= args.min_ratio
+    obs_gate = gate_test.observed_stats()
+    gate_pass = obs_gate['return_drawdown_ratio'] >= args.min_ratio
 
     logger.info(
-        f"\nStitched OOS — return: {obs['total_return']:+.2%}, "
-        f"maxDD: {obs['max_drawdown']:.2%}, "
-        f"ratio: {obs['return_drawdown_ratio']:.2f}  "
+        f"\nStitched OOS — return: {obs_gate['total_return']:+.2%}, "
+        f"maxDD: {obs_gate['max_drawdown']:.2%}, "
+        f"ratio: {obs_gate['return_drawdown_ratio']:.2f}  "
         f"({'PASS' if gate_pass else 'FAIL'} gate >= {args.min_ratio})"
     )
 
     if not gate_pass and not args.no_gate:
         logger.warning(
-            f"\nGate FAILED: stitched OOS return/drawdown {obs['return_drawdown_ratio']:.2f} "
+            f"\nGate FAILED: stitched OOS return/drawdown {obs_gate['return_drawdown_ratio']:.2f} "
             f"< {args.min_ratio}. Stopping here.\n"
             f"Use --no-gate to run Monte Carlo anyway."
         )
         return 1
 
-    # --- Step 3: Monte Carlo ---
-    logger.info(f"\nRunning {args.simulations} Monte Carlo simulations...")
-    result = mc_test.run()
+    # --- Step 3: simulation ---
+    logger.info(f"\nRunning {args.simulations} {args.mode} simulations...")
 
-    print()
-    print(MonteCarloTradeTest.summarize(result, min_ratio=args.min_ratio))
+    if args.mode == 'bootstrap':
+        sim = BootstrapTradeTest(
+            trades=all_oos_trades,
+            initial_capital=initial_capital,
+            n_simulations=args.simulations,
+            trades_per_year=args.trades_per_year,
+            random_seed=args.seed,
+        )
+        result = sim.run()
+        print()
+        print(BootstrapTradeTest.summarize(result))
+    else:
+        sim = MonteCarloTradeTest(
+            trades=all_oos_trades,
+            initial_capital=initial_capital,
+            n_simulations=args.simulations,
+            random_seed=args.seed,
+        )
+        result = sim.run()
+        print()
+        print(MonteCarloTradeTest.summarize(result, min_ratio=args.min_ratio))
 
     # --- Optional: save to YAML ---
     if args.output:
-        save = {
-            'config': args.config,
-            'folds': args.folds,
-            'train_ratio': args.train_ratio,
-            'opt_metric': args.opt_metric,
-            'min_ratio': args.min_ratio,
-            'n_simulations': args.simulations,
-            'n_trades': result['n_trades'],
-            'gate_pass': gate_pass,
-            'observed': result['observed'],
-            'median_ratio': result['median_ratio'],
-            'percentiles': result['percentiles'],
-            'fold_summaries': fold_summaries,
-        }
+        if args.mode == 'bootstrap':
+            save = {
+                'config': args.config,
+                'mode': args.mode,
+                'folds': args.folds,
+                'train_ratio': args.train_ratio,
+                'opt_metric': args.opt_metric,
+                'min_ratio': args.min_ratio,
+                'n_simulations': args.simulations,
+                'trades_per_year': args.trades_per_year,
+                'n_trades': result['n_trades'],
+                'gate_pass': gate_pass,
+                'observed': result['observed'],
+                'medians': result['medians'],
+                'percentiles': result['percentiles'],
+                'fold_summaries': fold_summaries,
+            }
+        else:
+            save = {
+                'config': args.config,
+                'mode': args.mode,
+                'folds': args.folds,
+                'train_ratio': args.train_ratio,
+                'opt_metric': args.opt_metric,
+                'min_ratio': args.min_ratio,
+                'n_simulations': args.simulations,
+                'n_trades': result['n_trades'],
+                'gate_pass': gate_pass,
+                'observed': result['observed'],
+                'median_ratio': result['median_ratio'],
+                'percentiles': result['percentiles'],
+                'fold_summaries': fold_summaries,
+            }
         out = Path(args.output)
         out.parent.mkdir(parents=True, exist_ok=True)
         with open(out, 'w') as f:
