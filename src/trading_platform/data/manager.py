@@ -128,6 +128,9 @@ class DataManager:
         elif provider_name == 'ib':
             from .providers.ib_provider import IBDataProvider
             return IBDataProvider(self.config)
+        elif provider_name == 'kraken':
+            from .providers.kraken_provider import KrakenDataProvider
+            return KrakenDataProvider(self.config)
         else:
             raise ValueError(f"Unknown data provider: {provider_name}")
 

@@ -205,6 +205,12 @@ cython_debug/
 /data/
 results/backtests/
 
+# API keys and secrets
+*_api.txt
+*_api_key.txt
+*.secret
+secrets/
+
 # macOS
 .DS_Store
 
