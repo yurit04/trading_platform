@@ -499,7 +499,10 @@ class KrakenDataProvider:
             'count': 'Trades',
         })
         df = df[~df.index.duplicated(keep='last')].sort_index()
-        df = df.loc[start_date:end_date]
+        # Strip tz from slice bounds to match the tz-naive DatetimeIndex
+        s = start_date.replace(tzinfo=None) if getattr(start_date, 'tzinfo', None) else start_date
+        e = end_date.replace(tzinfo=None) if getattr(end_date, 'tzinfo', None) else end_date
+        df = df.loc[s:e]
 
         logger.info("Downloaded %d OHLC bars for %s at %s", len(df), symbol, frequency)
         return df
