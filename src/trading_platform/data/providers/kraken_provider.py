@@ -274,10 +274,10 @@ class KrakenDataProvider:
 
     def get_asset_pairs(self) -> pd.DataFrame:
         """
-        List all available trading pairs with their metadata.
+        List all available trading pairs with their raw Kraken metadata.
 
-        Useful for discovering valid pair names before requesting data.
-        Returns a DataFrame indexed by Kraken pair name.
+        Returns a DataFrame indexed by Kraken pair name (e.g. 'XBTUSD').
+        Use get_tradeable_pairs() for a cleaner, pre-parsed view.
         """
         result = self._public_get('/0/public/AssetPairs', {})
         if result is None:
@@ -285,6 +285,97 @@ class KrakenDataProvider:
         df = pd.DataFrame(result).T
         logger.info("Fetched %d asset pairs from Kraken", len(df))
         return df
+
+    def get_tradeable_pairs(self, status: str = 'online') -> pd.DataFrame:
+        """
+        Return all Kraken trading pairs in a clean, parsed format.
+
+        Args:
+            status: Filter by pair status.  One of:
+                    'online'      – fully active (default)
+                    'post_only'   – limit/maker orders only
+                    'cancel_only' – no new orders, cancellations only
+                    'all'         – no status filter
+
+        Returns:
+            DataFrame with columns:
+                pair          – Kraken pair ID used in REST API calls (e.g. 'XBTUSD')
+                wsname        – WebSocket / human-readable name (e.g. 'XBT/USD')
+                base          – base asset  (e.g. 'XBT')
+                quote         – quote currency (e.g. 'USD')
+                status        – 'online' | 'post_only' | 'cancel_only'
+                min_order     – minimum order size (base asset units)
+                tick_size     – smallest price increment
+                margin        – True if leverage is available
+        """
+        result = self._public_get('/0/public/AssetPairs', {})
+        if result is None:
+            return pd.DataFrame()
+
+        rows = []
+        for pair_id, info in result.items():
+            wsname = info.get('wsname', '')
+            pair_status = info.get('status', '')
+            if status != 'all' and pair_status != status:
+                continue
+            base, _, quote = wsname.partition('/')
+            rows.append({
+                'pair':      pair_id,
+                'wsname':    wsname,
+                'base':      base,
+                'quote':     quote,
+                'status':    pair_status,
+                'min_order': info.get('ordermin', ''),
+                'tick_size': info.get('tick_size', ''),
+                'margin':    bool(info.get('leverage_buy') or info.get('leverage_sell')),
+            })
+
+        df = pd.DataFrame(rows).sort_values(['quote', 'base']).reset_index(drop=True)
+        logger.info(
+            "get_tradeable_pairs(status=%r): %d pairs", status, len(df)
+        )
+        return df
+
+    def get_pairs_for_quote(
+        self,
+        quote_currency: str,
+        status: str = 'online',
+    ) -> pd.DataFrame:
+        """
+        Return all pairs whose quote currency matches ``quote_currency``.
+
+        Useful for listing every cryptocurrency tradeable against a specific
+        currency such as USD, EUR, or USDT.
+
+        Args:
+            quote_currency: Quote currency to filter by (case-insensitive).
+                            Accepts conventional names: 'USD', 'EUR', 'BTC', etc.
+                            'BTC' is automatically aliased to Kraken's 'XBT'.
+            status:         Same as get_tradeable_pairs() — default 'online'.
+
+        Returns:
+            Same schema as get_tradeable_pairs(), filtered to the requested
+            quote currency and sorted by base asset name.
+
+        Examples::
+
+            p.get_pairs_for_quote('USD')   # all XYZ/USD pairs
+            p.get_pairs_for_quote('EUR')   # all XYZ/EUR pairs
+            p.get_pairs_for_quote('USDT')  # all XYZ/USDT pairs
+            p.get_pairs_for_quote('BTC')   # all XYZ/XBT pairs
+        """
+        # Normalise: upper-case, and map BTC → XBT (Kraken's name for Bitcoin)
+        target = _QUOTE_ALIASES.get(quote_currency.upper(), quote_currency.upper())
+
+        df = self.get_tradeable_pairs(status=status)
+        if df.empty:
+            return df
+
+        filtered = df[df['quote'] == target].reset_index(drop=True)
+        logger.info(
+            "get_pairs_for_quote(%r): %d pairs", quote_currency, len(filtered)
+        )
+        return filtered
 
     # ------------------------------------------------------------------
     # Private (authenticated) endpoints
@@ -521,6 +612,16 @@ class KrakenDataProvider:
 # ------------------------------------------------------------------
 # Module-level utilities
 # ------------------------------------------------------------------
+
+# Map user-friendly quote currency names to the names Kraken uses in wsname.
+# Only entries that differ from the obvious upper-case form are needed.
+_QUOTE_ALIASES: Dict[str, str] = {
+    'BTC':      'XBT',   # Bitcoin: user says BTC, Kraken says XBT
+    'BITCOIN':  'XBT',
+    'ETHER':    'ETH',
+    'ETHEREUM': 'ETH',
+}
+
 
 def _to_kraken_pair(symbol: str) -> str:
     """
