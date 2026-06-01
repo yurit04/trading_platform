@@ -512,19 +512,49 @@ class KrakenDataProvider:
     # ------------------------------------------------------------------
 
     def _public_get(
-        self, path: str, params: Dict[str, Any]
+        self, path: str, params: Dict[str, Any],
+        retries: int = 6, backoff: float = 2.0,
     ) -> Optional[Dict[str, Any]]:
-        try:
-            resp = self._session.get(_BASE_URL + path, params=params, timeout=30)
-            resp.raise_for_status()
-            body = resp.json()
-            if body.get('error'):
-                logger.error("Kraken API error (%s): %s", path, body['error'])
-                return None
-            return body.get('result')
-        except Exception as exc:
-            logger.error("Kraken GET failed (%s): %s", path, exc)
-            return None
+        """
+        GET a public Kraken endpoint, retrying on rate-limit and transient errors.
+
+        On 'Too many requests' the delay doubles each attempt (2 s, 4 s, 8 s …).
+        Other HTTP / network errors are also retried with the same schedule.
+        Returns None only after all retries are exhausted.
+        """
+        delay = backoff
+        for attempt in range(1, retries + 1):
+            try:
+                resp = self._session.get(_BASE_URL + path, params=params, timeout=30)
+                resp.raise_for_status()
+                body = resp.json()
+                errors = body.get('error', [])
+                if errors:
+                    if any('Too many requests' in e or 'Rate limit' in e for e in errors):
+                        if attempt < retries:
+                            logger.warning(
+                                "Kraken rate-limited (%s), retrying in %.0fs "
+                                "(attempt %d/%d)…",
+                                path, delay, attempt, retries,
+                            )
+                            time.sleep(delay)
+                            delay *= 2
+                            continue
+                    logger.error("Kraken API error (%s): %s", path, errors)
+                    return None
+                return body.get('result')
+            except Exception as exc:
+                if attempt < retries:
+                    logger.warning(
+                        "Kraken GET failed (%s): %s — retrying in %.0fs "
+                        "(attempt %d/%d)…",
+                        path, exc, delay, attempt, retries,
+                    )
+                    time.sleep(delay)
+                    delay *= 2
+                else:
+                    logger.error("Kraken GET failed (%s) after %d attempts: %s", path, retries, exc)
+        return None
 
     def _private_post(
         self, path: str, data: Dict[str, Any]
