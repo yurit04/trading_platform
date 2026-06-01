@@ -383,10 +383,16 @@ trading_platform/
 
 ### Prerequisites
 
-- Python 3.10+
-- PostgreSQL 14+
-- Redis 6+
-- Docker (optional, for containerized deployment)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) — manages Python and the virtual environment automatically
+- PostgreSQL 14+ (optional, only needed for the `db` extra)
+- Redis 6+ (optional, only needed for the `db` extra)
+- Docker (optional, for containerised deployment)
+
+Install uv if you don't have it:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 ### Basic Installation
 
@@ -395,23 +401,50 @@ trading_platform/
 git clone https://github.com/yurit04/trading_platform.git
 cd trading_platform
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install the package in development mode
-pip install -e .
+# Create virtual environment and install core dependencies
+# (downloads Python 3.12 automatically if not already installed)
+uv sync
 
 # Set up configuration
 cp .env.example .env
 # Edit .env with your settings
-
-# Initialize database
-python scripts/init_database.py
 ```
+
+`uv sync` creates `.venv`, installs Python 3.12, and pins all package versions via `uv.lock`.
+
+To run scripts without manually activating the environment:
+
+```bash
+uv run python scripts/kraken_bars.py data/kraken --quote USD
+```
+
+Or activate once for an interactive session:
+
+```bash
+source .venv/bin/activate
+python scripts/kraken_bars.py data/kraken --quote USD
+```
+
+### Optional Extras
+
+The core install is intentionally lean. Add extras based on what you need:
+
+| Extra | Installs | When you need it |
+|---|---|---|
+| `brokers` | ib-insync | Interactive Brokers live trading |
+| `db` | sqlalchemy, psycopg2-binary, redis | PostgreSQL / TimescaleDB / Redis backends |
+| `ta` | pandas-ta, ta, ta-lib | Technical-analysis indicators |
+| `ml` | xgboost, cvxpy, riskfolio-lib, optuna | Machine learning and portfolio optimisation |
+| `jupyter` | notebook | Research notebooks |
+| `dev` | pytest, black, flake8, mypy, isort | Development and testing |
+
+```bash
+uv sync --extra brokers
+uv sync --extra ml --extra dev   # combine freely
+```
+
+> **Note:** the `ta` extra requires the `ta-lib` C library before `uv sync`:
+> `brew install ta-lib` (macOS) or `apt install libta-lib-dev` (Linux).
 
 ### Docker Installation
 
@@ -678,14 +711,17 @@ pytest tests/unit/test_strategy.py
 ### Development Environment
 
 ```bash
-# Activate virtual environment
-source venv/bin/activate
+# Install with dev + jupyter extras
+uv sync --extra dev --extra jupyter
 
 # Run backtest
-python scripts/backtest.py --config config/strategies/momentum.yaml
+uv run python scripts/backtest.py --config config/strategies/momentum.yaml
+
+# Download Kraken bars for all USD pairs (daily + hourly)
+uv run python scripts/kraken_bars.py data/kraken --quote USD --frequencies 1D 1h
 
 # Start Jupyter for research
-jupyter notebook
+uv run jupyter notebook
 ```
 
 ### Production Deployment
