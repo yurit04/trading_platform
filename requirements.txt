@@ -1,56 +1,13 @@
-# Core dependencies
-pandas
-numpy
-scikit-learn
-statsmodels
-scipy
-pydantic
-python-dateutil
-
-# Data handling
-sqlalchemy
-psycopg2-binary
-redis
-pyarrow
-
-# Async support
-aiohttp
-
-# Financial data
-pandas-datareader
-yfinance
-
-# Technical analysis
-pandas-ta
-ta-lib
-ta
-
-# Machine learning
-xgboost
-cvxpy
-riskfolio-lib
-optuna
-
-# Visualization
-matplotlib
-plotly
-seaborn
-quantstats
-
-# API clients (optional - install based on brokers used)
-ib-insync  # Interactive Brokers
-# ccxt  # Crypto exchanges
-# alpaca-trade-api  # Alpaca
-
-# Utilities
-python-dotenv
-pyyaml
-click
-tqdm
-requests
-
-# Logging and monitoring
-loguru
-
-# Jupyter (optional)
-notebook
+# Dependencies are now managed in pyproject.toml.
+# Use uv to install:
+#
+#   uv sync                              # core deps only
+#   uv sync --extra brokers              # + Interactive Brokers
+#   uv sync --extra db                   # + PostgreSQL / Redis
+#   uv sync --extra ta                   # + technical-analysis libs (needs: brew install ta-lib)
+#   uv sync --extra ml                   # + machine-learning / optimisation
+#   uv sync --extra brokers --extra ml   # combine extras freely
+#   uv sync --extra dev                  # + linting / testing tools
+#
+# This file is kept only for tools that expect requirements.txt.
+# It is NOT the canonical dependency list.

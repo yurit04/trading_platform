@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "A comprehensive algorithmic trading platform for systematic strategies"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 authors = [
     { name = "Syntax Error Capital", email = "dev@blackhole.com" },
 ]
@@ -17,16 +17,79 @@ classifiers = [
     "Intended Audience :: Financial and Insurance Industry",
     "Topic :: Office/Business :: Financial :: Investment",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-dynamic = ["dependencies"]
 
-[project.urls]
-Homepage = "https://github.com/yurit04/trading_platform"
+dependencies = [
+    # Core numerical / data
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "statsmodels",
+    "scipy",
+    "pydantic",
+    "python-dateutil",
+    "pyarrow",
+
+    # Async & HTTP
+    "aiohttp",
+    "requests",
+
+    # Market data
+    "yfinance",
+    "pandas-datareader",
+
+    # Visualisation
+    "matplotlib",
+    "plotly",
+    "seaborn",
+    "quantstats",
+
+    # Utilities
+    "python-dotenv",
+    "pyyaml",
+    "click",
+    "tqdm",
+    "loguru",
+]
 
 [project.optional-dependencies]
+# Broker / exchange connectors
+brokers = [
+    "ib-insync",          # Interactive Brokers (TWS/Gateway)
+    # "ccxt",             # 100+ crypto exchanges
+    # "alpaca-trade-api", # Alpaca
+]
+
+# Database backends (TimescaleDB / PostgreSQL + Redis)
+db = [
+    "sqlalchemy",
+    "psycopg2-binary",
+    "redis",
+]
+
+# Technical-analysis libraries
+# ta-lib requires the C library: brew install ta-lib
+ta = [
+    "pandas-ta",
+    "ta",
+    "ta-lib",
+]
+
+# Machine-learning / optimisation
+ml = [
+    "xgboost",
+    "cvxpy",
+    "riskfolio-lib",
+    "optuna",
+]
+
+# Jupyter notebooks
+jupyter = [
+    "notebook",
+]
+
+# Development tooling
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
@@ -36,23 +99,25 @@ dev = [
     "mypy>=1.5.0",
     "isort>=5.12.0",
 ]
+
+# Documentation
 docs = [
     "sphinx>=7.1.0",
     "sphinx-rtd-theme>=1.3.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/yurit04/trading_platform"
+
 [project.scripts]
 trading-backtest = "scripts.backtest:main"
-trading-live = "scripts.live_trading:main"
+trading-live     = "scripts.live_trading:main"
 trading-download = "scripts.data_download:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 addopts = "-v --tb=short"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
