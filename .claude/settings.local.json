@@ -6,7 +6,22 @@
       "Bash(python -c:*)",
       "Bash(PYTHONPATH=src:. python:*)",
       "Bash(python scripts/optimize.py:*)",
-      "Bash(python -m pytest:*)"
+      "Bash(python -m pytest:*)",
+      "Bash(pip show *)",
+      "Bash(pip3 show *)",
+      "Bash(python3 -c \"import requests; r = requests.get\\('https://api.kraken.com/0/public/AssetPairs', timeout=5\\); import json; pairs = list\\(json.loads\\(r.text\\)['result'].keys\\(\\)\\)[:10]; print\\(pairs\\)\")",
+      "Bash(pip3 list *)",
+      "Bash(python3 *)",
+      "Bash(conda run *)",
+      "Bash(conda env *)",
+      "Read(//Users/yuriturygin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(pyenv which *)",
+      "Bash(/opt/homebrew/bin/python3.12 *)",
+      "Bash(/Users/yuriturygin/Documents/GitHub/algo_market_making/.venv/bin/python *)",
+      "Bash(/Users/yuriturygin/Documents/GitHub/statistical_arbitrage/.venv/bin/python *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
